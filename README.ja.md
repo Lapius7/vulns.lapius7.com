@@ -29,6 +29,11 @@
 | [FIRST EPSS](https://www.first.org/epss/) | 悪用される確率とその推移 |
 | [CVE.org](https://www.cve.org/) | 影響を受ける製品、対策、謝辞 |
 | [OSV](https://osv.dev/) | 影響を受けるパッケージと修正済みバージョン |
+| [Exploit-DB](https://www.exploit-db.com/) | 公開エクスプロイト |
+| [Metasploit](https://github.com/rapid7/metasploit-framework) / [Nuclei テンプレート](https://github.com/projectdiscovery/nuclei-templates) | 攻撃モジュールとスキャナ用テンプレート |
+| [PoC-in-GitHub](https://github.com/nomi-sec/PoC-in-GitHub) / [Trickest](https://github.com/trickest/cve) | 公開 PoC リポジトリ |
+| Ubuntu / Red Hat / Microsoft MSRC | ベンダー・ディストリの修正状況 |
+| [Hacker News](https://news.ycombinator.com/) | コミュニティでの言及 |
 | [GitHub Advisories](https://github.com/advisories) | パッケージ向けアドバイザリ |
 | [JVN iPedia](https://jvndb.jvn.jp/) | 日本語の説明文 |
 | [MITRE CWE](https://cwe.mitre.org/) | 脆弱性の種類の名前 |
@@ -94,6 +99,7 @@ npm start                   # dist/ と /api を 127.0.0.1:3100 で配信
 | `GET /api/cves?q=&severity=&year=&kev=1&sort=&page=` | 検索。`sort` は `new`、`score`、`epss`、`modified` |
 | `GET /api/cves/:id` | CVE 1 件 |
 | `GET /api/cves/:id/extra` | EPSS、KEV、CVE.org、OSV、GitHub Advisories、JVN |
+| `GET /api/cves/:id/intel` | 公開エクスプロイト、PoC、スキャナ用テンプレート、ベンダーのアドバイザリ、言及 |
 | `GET /api/cves/:id/related` | 同じ CWE・製品の CVE |
 | `GET /api/pkg/:ecosystem/*name?version=` | パッケージの脆弱性(毎分 30 回まで) |
 | `POST /api/scan` | `{packages:[{ecosystem,name,version}]}` を最大 3,000 個まで診断(毎分 10 回まで) |

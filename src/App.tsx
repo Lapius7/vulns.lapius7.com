@@ -4,11 +4,12 @@ import { Select } from '@/components/arc/select/select'
 import SegmentedControl from '@/components/arc/segmented-control/segmented-control'
 import { Pagination } from '@/components/arc/pagination/pagination'
 import { Button } from '@/components/arc/button/button'
+import { Input } from '@/components/arc/input/input'
 import { EmptyState } from '@/components/arc/empty-state/empty-state'
 import { Skeleton } from '@/components/arc/skeleton/skeleton'
 import { useThemeTransition } from '@/components/transitions/theme-transition'
 import { ThemeSwitch, type Theme } from '@/components/arc/theme-switch/theme-switch'
-import { ADV_RE, getAdvisory, getEpssTop, type Advisory, getKev, searchCves, type EpssItem, type Feed, type KevItem, type CveList } from '@/lib/api'
+import { ADV_KEYS, ADV_RE, getAdvisory, getEpssTop, type Advisory, getKev, searchCves, type EpssItem, type Feed, type KevItem, type CveList } from '@/lib/api'
 import { Link, stripLang, usePath, withLang } from '@/lib/router'
 import { useLang, type Lang } from '@/lib/i18n'
 import Detail from '@/Detail'
@@ -75,6 +76,10 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
   const [severity, setSeverity] = useState(init.get('severity') ?? '')
   const [year, setYear] = useState(init.get('year') ?? '')
   const [sort, setSort] = useState(init.get('sort') ?? '')
+  const [adv, setAdv] = useState<Record<string, string>>(() => Object.fromEntries(ADV_KEYS.map((k) => [k, init.get(k) ?? '']).filter(([, v]) => v)))
+  const [advOpen, setAdvOpen] = useState(() => ADV_KEYS.some((k) => init.get(k)))
+  const setA = (k: string, v: string) => { setAdv((a) => ({ ...a, [k]: v })); setPage(1) }
+  const advCount = Object.values(adv).filter(Boolean).length
   const [page, setPage] = useState(Number(init.get('page')) || 1)
   const [data, setData] = useState<CveList | null>(null)
   const [kev, setKev] = useState<Feed<KevItem> | null>(null)
@@ -106,20 +111,21 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
     if (tab === 'search' && severity) p.set('severity', severity)
     if (tab === 'search' && year) p.set('year', year)
     if (tab === 'search' && sort) p.set('sort', sort)
+    if (tab === 'search') for (const [k, v] of Object.entries(adv)) if (v) p.set(k, v)
     if (page > 1) p.set('page', String(page))
     history.replaceState(null, '', p.size ? `?${p}` : location.pathname)
-  }, [tab, dq, severity, year, sort, page])
+  }, [tab, dq, severity, year, sort, adv, page])
 
   useEffect(() => {
     const ac = new AbortController()
     setLoading(true)
     setError(null)
     const fail = (e: Error) => { if (e.name !== 'AbortError') { setError(e.message === 'rate_limited' ? 'rate' : 'loadFail'); setLoading(false) } }
-    if (tab === 'search') searchCves(dq, severity, page, ac.signal, year, sort).then((d) => { setData(d); setLoading(false) }).catch(fail)
+    if (tab === 'search') searchCves(dq, severity, page, ac.signal, year, sort, adv).then((d) => { setData(d); setLoading(false) }).catch(fail)
     else if (tab === 'kev') getKev(page, ac.signal).then((d) => { setKev(d); setLoading(false) }).catch(fail)
     else getEpssTop(page, ac.signal).then((d) => { setTop(d); setLoading(false) }).catch(fail)
     return () => ac.abort()
-  }, [tab, dq, severity, year, sort, page, nonce])
+  }, [tab, dq, severity, year, sort, adv, page, nonce])
 
   const feed = tab === 'search' ? data : tab === 'kev' ? kev : top
   const pageCount = feed ? Math.ceil(feed.total / feed.perPage) : 0
@@ -149,11 +155,32 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
           </div>
           <SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} />
           <Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} />
-          <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }]} />
+          <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} />
+          <Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button>
         </div>
       ) : (
         <p className="lead" style={{ marginTop: 0 }}>{t(tab === 'kev' ? 'kevLead' : 'epssLead')}</p>
       )}
+
+      {tab === 'search' && advOpen && <div className="advpanel card">
+        <Input label={t('fMinScore')} type="number" inputMode="decimal" min={0} max={10} step={0.1} value={adv.minScore ?? ''} onChange={(e) => setA('minScore', e.target.value)} />
+        <Input label={t('fMaxScore')} type="number" inputMode="decimal" min={0} max={10} step={0.1} value={adv.maxScore ?? ''} onChange={(e) => setA('maxScore', e.target.value)} />
+        <Input label={t('fMinEpss')} type="number" inputMode="decimal" min={0} max={100} step={1} value={adv.minEpss ? String(Math.round(Number(adv.minEpss) * 100)) : ''} onChange={(e) => setA('minEpss', e.target.value === '' ? '' : String(Math.min(100, Math.max(0, Number(e.target.value))) / 100))} />
+        <Input label={t('fFrom')} type="date" value={adv.from ?? ''} onChange={(e) => setA('from', e.target.value)} />
+        <Input label={t('fTo')} type="date" value={adv.to ?? ''} onChange={(e) => setA('to', e.target.value)} />
+        <Input label={t('fCwe')} placeholder="CWE-79" value={adv.cwe ?? ''} onChange={(e) => setA('cwe', e.target.value)} />
+        <Input label={t('fVendor')} placeholder="microsoft" value={adv.vendor ?? ''} onChange={(e) => setA('vendor', e.target.value)} />
+        <Input label={t('fProduct')} placeholder="windows_11" value={adv.product ?? ''} onChange={(e) => setA('product', e.target.value)} />
+        <Select label={t('fAv')} value={adv.av || '_'} onValueChange={(v) => setA('av', v === '_' ? '' : v)} options={[{ value: '_', label: t('any') }, { value: 'N', label: t('mNetwork') }, { value: 'A', label: t('mAdjacent') }, { value: 'L', label: t('mLocal') }, { value: 'P', label: t('mPhysical') }]} />
+        <Select label={t('fAc')} value={adv.ac || '_'} onValueChange={(v) => setA('ac', v === '_' ? '' : v)} options={[{ value: '_', label: t('any') }, { value: 'L', label: t('mLow') }, { value: 'H', label: t('mHigh') }]} />
+        <Select label={t('fPr')} value={adv.pr || '_'} onValueChange={(v) => setA('pr', v === '_' ? '' : v)} options={[{ value: '_', label: t('any') }, { value: 'N', label: t('mNone') }, { value: 'L', label: t('mLow') }, { value: 'H', label: t('mHigh') }]} />
+        <Select label={t('fUi')} value={adv.ui || '_'} onValueChange={(v) => setA('ui', v === '_' ? '' : v)} options={[{ value: '_', label: t('any') }, { value: 'N', label: t('mNone') }, { value: 'R', label: t('mRequired') }]} />
+        <Select label={t('fCvss')} value={adv.cvss || '_'} onValueChange={(v) => setA('cvss', v === '_' ? '' : v)} options={[{ value: '_', label: t('any') }, { value: '4.0', label: 'CVSS 4.0' }, { value: '3.1', label: 'CVSS 3.1' }, { value: '3.0', label: 'CVSS 3.0' }, { value: '2.0', label: 'CVSS 2.0' }]} />
+        <label className="advchk"><input type="checkbox" checked={adv.kev === '1'} onChange={(e) => setA('kev', e.target.checked ? '1' : '')} /> {t('fKev')}</label>
+        <label className="advchk"><input type="checkbox" checked={adv.ransomware === '1'} onChange={(e) => setA('ransomware', e.target.checked ? '1' : '')} /> {t('fRansom')}</label>
+        <label className="advchk"><input type="checkbox" checked={adv.noRejected === '1'} onChange={(e) => setA('noRejected', e.target.checked ? '1' : '')} /> {t('fNoReject')}</label>
+        {advCount > 0 && <Button variant="ghost" size="sm" onClick={() => { setAdv({}); setPage(1) }}>{t('fReset')}</Button>}
+      </div>}
 
       {intents.length > 0 && <div className="card" style={{ margin: '0 0 .75rem', display: 'grid', gap: '.25rem' }}>
         {intents.map((it) => <p key={it.href} style={{ margin: 0 }}><Link href={it.href}>{t(it.kind === 'pkg' ? 'openPkg' : it.kind === 'vendor' ? 'openVendor' : it.kind === 'cwe' ? 'openCwe' : 'openCve', { x: it.label })}</Link></p>)}

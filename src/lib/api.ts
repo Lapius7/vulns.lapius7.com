@@ -42,6 +42,17 @@ export const getEpssTop = (page: number, signal?: AbortSignal) => get<Feed<EpssI
 export const getTranslation = (id: string, signal?: AbortSignal) => get<{ text: string }>(`/api/translate/${id}`, signal)
 export interface ExtraJa { kevName: string | null; kevAction: string | null; solutions: (string | null)[]; workarounds: (string | null)[] }
 export const getExtraJa = (id: string, signal?: AbortSignal) => get<ExtraJa>(`/api/cves/${id}/extra-ja`, signal)
+export interface Intel {
+  exploitdb: { id: string; title: string; type: string; platform: string; published: string; author: string; verified: boolean; url: string }[]
+  metasploit: { name: string; module: string; type: string; rank: number; disclosed: string | null; url: string }[]
+  nuclei: { name: string; severity: string; url: string }[]
+  pocs: { repo: string; url: string; description: string; stars: number; updated: string }[]
+  trickest: string[]
+  distros: { vendor: string; severity: string | null; url: string; states: { product: string; status: string; fixed?: string }[] }[]
+  msrc: { title: string; released: string; exploited: string; disclosed: string; url: string } | null
+  mentions: { title: string; url: string; points: number; comments: number; date: string; site: string }[]
+}
+export const getIntel = (id: string, signal?: AbortSignal) => get<Intel>(`/api/cves/${id}/intel`, signal)
 export const getExtra = (id: string, signal?: AbortSignal) => get<Extra>(`/api/cves/${id}/extra`, signal)
 
 async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -50,12 +61,16 @@ async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   return res.json()
 }
 
-export const searchCves = (q: string, severity: string, page: number, signal?: AbortSignal, year = '', sort = '') => {
+/** Extra DB-backed filters understood by /api/cves. */
+export const ADV_KEYS = ['minScore', 'maxScore', 'minEpss', 'from', 'to', 'cwe', 'vendor', 'product', 'av', 'ac', 'pr', 'ui', 'cvss', 'kev', 'ransomware', 'noRejected'] as const
+
+export const searchCves = (q: string, severity: string, page: number, signal?: AbortSignal, year = '', sort = '', adv: Record<string, string> = {}) => {
   const p = new URLSearchParams({ page: String(page) })
   if (q) p.set('q', q)
   if (severity) p.set('severity', severity)
   if (year) p.set('year', year)
   if (sort) p.set('sort', sort)
+  for (const [k, v] of Object.entries(adv)) if (v) p.set(k, v)
   return get<CveList>(`/api/cves?${p}`, signal)
 }
 export const getCve = (id: string, signal?: AbortSignal) => get<Cve>(`/api/cves/${id}`, signal)

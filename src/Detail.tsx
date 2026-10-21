@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/arc/empty-state/empty-state'
 import { Skeleton } from '@/components/arc/skeleton/skeleton'
 import Sparkline from '@/components/arc/sparkline/sparkline'
 import { ThemeSwitch, type Theme } from '@/components/arc/theme-switch/theme-switch'
-import { ADV_RE, fmtDate, getCve, getExtra, getExtraJa, getRelated, getTranslation, shortId, tone, type Cve, type Extra, type ExtraJa } from '@/lib/api'
+import { ADV_RE, fmtDate, getCve, getExtra, getExtraJa, getIntel, getRelated, getTranslation, shortId, tone, type Cve, type Extra, type ExtraJa, type Intel } from '@/lib/api'
 import { Link, withLang } from '@/lib/router'
 import { CopyMenu } from '@/lib/CopyMenu'
 import { RichText } from '@/RichText'
@@ -33,6 +33,7 @@ export default function Detail({ id, theme, onThemeChange }: { id: string; theme
   const [err, setErr] = useState<string | null>(null)
   const [x, setX] = useState<Extra | null>(null)
   const [xLoaded, setXLoaded] = useState(false)
+  const [intel, setIntel] = useState<Intel | null>(null)
   const [tr, setTr] = useState<string | null>(null)
   const [xja, setXja] = useState<ExtraJa | null>(null)
   const [trFailed, setTrFailed] = useState(false)
@@ -45,9 +46,10 @@ export default function Detail({ id, theme, onThemeChange }: { id: string; theme
 
   useEffect(() => {
     const ac = new AbortController()
-    setCve(null); setErr(null); setX(null); setXLoaded(false); setTr(null); setTrFailed(false)
+    setCve(null); setErr(null); setX(null); setIntel(null); setXLoaded(false); setTr(null); setTrFailed(false)
     loadedLang.current = langRef.current
     getRelated(id, ac.signal).then(setRel).catch(() => {})
+    getIntel(id, ac.signal).then(setIntel).catch(() => {})
     getExtra(id, ac.signal).then(setX).catch(() => {}).finally(() => setXLoaded(true))
     getCve(id, ac.signal).then(setCve).catch((e) => e.name !== 'AbortError' && setErr(e.message))
     return () => ac.abort()
@@ -245,6 +247,35 @@ export default function Detail({ id, theme, onThemeChange }: { id: string; theme
           {x?.osv && x.osv.packages.length > 0 && <section className="card">
             <h3>{t('osv')}{x.osv.aliases.length > 0 && `, ${t('alias', { a: x.osv.aliases.join(', ') })}`}</h3>
             <ul>{x.osv.packages.map((p, i) => <li key={i}>{p.ecosystem}: <code>{p.name}</code>{p.fixed.length > 0 && <span className="tags"> {t('patched', { v: p.fixed.join(', ') })}</span>}</li>)}</ul>
+          </section>}
+
+          {intel && (intel.exploitdb.length + intel.metasploit.length + intel.nuclei.length + intel.pocs.length + intel.trickest.length > 0) && <section className="card">
+            <h3>{t('intelExploits')} <span className="tags">{intel.exploitdb.length + intel.metasploit.length + intel.nuclei.length + intel.pocs.length}</span></h3>
+            {intel.exploitdb.length > 0 && <><p className="tags">{t('intelEdb')}</p>
+              <ul className="refs">{intel.exploitdb.slice(0, 5).map((e) => <li key={e.id}><Ext href={e.url}>{e.title}</Ext> <span className="tags">{e.type} · {e.platform} · {e.published}{e.verified ? ` · ${t('intelVerified')}` : ''}</span></li>)}</ul></>}
+            {intel.metasploit.length > 0 && <><p className="tags">{t('intelMsf')}</p>
+              <ul className="refs">{intel.metasploit.slice(0, 5).map((m) => <li key={m.module}><Ext href={m.url}>{m.name}</Ext> <span className="tags"><code>{m.module}</code></span></li>)}</ul></>}
+            {intel.nuclei.length > 0 && <><p className="tags">{t('intelScanners')}</p>
+              <ul className="refs">{intel.nuclei.slice(0, 3).map((n) => <li key={n.url}><Ext href={n.url}>{n.name}</Ext> <span className="tags">{n.severity}</span></li>)}</ul></>}
+            {intel.pocs.length > 0 && <><p className="tags">{t('intelPoc')}</p>
+              <ul className="refs">{intel.pocs.slice(0, 5).map((r) => <li key={r.repo}><Ext href={r.url}>{r.repo}</Ext> <span className="tags">★ {r.stars}{r.description ? ` · ${r.description}` : ''}</span></li>)}</ul>
+              {intel.pocs.length > 5 && <details className="more"><summary>+{intel.pocs.length - 5}</summary><ul className="refs">{intel.pocs.slice(5).map((r) => <li key={r.repo}><Ext href={r.url}>{r.repo}</Ext> <span className="tags">★ {r.stars}</span></li>)}</ul></details>}</>}
+            {intel.trickest.length > 0 && <details className="more"><summary>{t('intelMore')} · {intel.trickest.length}</summary><ul className="refs">{intel.trickest.map((u) => <li key={u}><Ext href={u}>{u}</Ext></li>)}</ul></details>}
+          </section>}
+
+          {intel && (intel.msrc || intel.distros.length > 0) && <section className="card">
+            <h3>{t('intelDistros')}</h3>
+            {intel.msrc && <p><Ext href={intel.msrc.url}>{t('intelMsrc')}</Ext> <span className="tags">{intel.msrc.title} · {t('intelExploited', { v: intel.msrc.exploited })} · {t('intelDisclosed', { v: intel.msrc.disclosed })}</span></p>}
+            {intel.distros.map((d) => <div key={d.vendor} className="fixg">
+              <p><Ext href={d.url}>{d.vendor}</Ext> {d.severity && <Badge size="sm">{d.severity}</Badge>}</p>
+              <ul className="refs">{d.states.slice(0, 6).map((s, i) => <li key={i} className="tags"><code>{s.product}</code> · {s.status}{s.fixed ? ` · ${s.fixed}` : ''}</li>)}</ul>
+              {d.states.length > 6 && <details className="more"><summary>+{d.states.length - 6}</summary><ul className="refs">{d.states.slice(6).map((s, i) => <li key={i} className="tags"><code>{s.product}</code> · {s.status}{s.fixed ? ` · ${s.fixed}` : ''}</li>)}</ul></details>}
+            </div>)}
+          </section>}
+
+          {intel && intel.mentions.length > 0 && <section className="card">
+            <h3>{t('intelMentions')}</h3>
+            <ul className="refs">{intel.mentions.map((m) => <li key={m.url}><Ext href={m.url}>{m.title}</Ext> <span className="tags">{m.site} · ▲ {m.points} · {m.comments} · {m.date}</span></li>)}</ul>
           </section>}
 
           {exploitRefs.length > 0 && <section className="card">

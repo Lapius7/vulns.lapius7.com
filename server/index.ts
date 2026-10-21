@@ -7,6 +7,7 @@ import { normalize, nvdRaw, type Json } from './nvd.ts'
 import { ADV_RE, advisory, translateAdvisory, cached, cveOrg, cweName, epssSeries, ghsa, jvn, normAdvId, osv, storedJa, translateJa, translateJaKeepUrls } from './sources.ts'
 import { startScheduler } from './sync.ts'
 import { extraRoutes } from './extra.ts'
+import { intel } from './intel.ts'
 import { renderOg } from './og.ts'
 import { cachedAdvisory, hit, migrateStore, storeRoutes } from './store.ts'
 
@@ -70,6 +71,7 @@ app.get('/api/cves', wrap(async (req, res) => {
   const year = String(req.query.year ?? '')
   const sort = String(req.query.sort ?? '')
   const kevOnly = req.query.kev === '1'
+  const ransom = req.query.ransomware === '1'
   if (q.length >= 2 && page === 1 && !CVE_RE.test(q)) hit('search', q)
 
   if (!(await ready())) return res.json(await nvdSearch(q, sev, page, year, goneFn(res)))
@@ -93,13 +95,41 @@ app.get('/api/cves', wrap(async (req, res) => {
   }
   if (SEVERITIES.includes(sev)) { where.push('c.severity = ?'); args.push(sev) }
   if (/^\d{4}$/.test(year)) { where.push('c.published >= ? AND c.published < ?'); args.push(`${year}-01-01`, `${Number(year) + 1}-01-01`) }
-  if (kevOnly) where.push('k.cve_id IS NOT NULL')
-  if (sort === 'score') orderBy = 'c.score DESC, c.published DESC'
+  if (kevOnly || ransom) where.push('k.cve_id IS NOT NULL')
+  if (ransom) where.push('k.ransomware = 1')
+  const num = (v: unknown, lo: number, hi: number) => { const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= lo && n <= hi ? n : null }
+  const minScore = num(req.query.minScore, 0, 10), maxScore = num(req.query.maxScore, 0, 10), minEpss = num(req.query.minEpss, 0, 1)
+  if (minScore != null) { where.push('c.score >= ?'); args.push(minScore) }
+  if (maxScore != null) { where.push('c.score <= ?'); args.push(maxScore) }
+  if (minEpss != null) { where.push('e.score >= ?'); args.push(minEpss) }
+  const date = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? String(v) : ''
+  const from = date(req.query.from), to = date(req.query.to)
+  if (from) { where.push('c.published >= ?'); args.push(from) }
+  if (to) { where.push('c.published < DATE_ADD(?, INTERVAL 1 DAY)'); args.push(to) }
+  const cwe = String(req.query.cwe ?? '').trim().toUpperCase().replace(/^(CWE-)?(\d{1,5})$/, 'CWE-$2')
+  if (/^CWE-\d{1,5}$/.test(cwe)) { where.push('JSON_CONTAINS(c.cwes, JSON_QUOTE(?))'); args.push(cwe) }
+  const vendor = String(req.query.vendor ?? '').trim().toLowerCase().slice(0, 128), product = String(req.query.product ?? '').trim().toLowerCase().slice(0, 160)
+  if (vendor || product) {
+    const w = [vendor && 'vendor = ?', product && 'product = ?'].filter(Boolean).join(' AND ')
+    where.push(`c.id IN (SELECT cve_id FROM cve_product WHERE ${w})`)
+    args.push(...[vendor, product].filter(Boolean))
+  }
+  // CVSS v3 base metrics, e.g. av=N (network), ac=L, pr=N, ui=N
+  const METRIC: Record<string, string> = { av: 'NALP', ac: 'LH', pr: 'NLH', ui: 'NR' }
+  for (const [k, ok] of Object.entries(METRIC)) {
+    const v = String(req.query[k] ?? '').toUpperCase()
+    if (v.length === 1 && ok.includes(v)) { where.push('c.vector LIKE ?'); args.push(`%/${k.toUpperCase()}:${v}/%`.replace(/^%\//, '%')) }
+  }
+  const cv = String(req.query.cvss ?? '')
+  if (['2.0', '3.0', '3.1', '4.0'].includes(cv)) { where.push('c.cvss_version = ?'); args.push(cv) }
+  if (req.query.noRejected === '1') where.push("c.description NOT LIKE '** REJECT **%'")
+  if (sort === 'old') orderBy = 'c.published ASC'
+  else if (sort === 'score') orderBy = 'c.score DESC, c.published DESC'
   else if (sort === 'epss') orderBy = 'e.score DESC, c.published DESC'
   else if (sort === 'modified') orderBy = 'c.modified DESC'
   else if (sort === 'new') orderBy = 'c.published DESC'
   const W = where.length ? `WHERE ${where.join(' AND ')}` : ''
-  const needJoin = kevOnly || sort === 'epss'
+  const needJoin = kevOnly || ransom || sort === 'epss' || req.query.minEpss !== undefined
   const [cnt] = await pool.query<any[]>(
     `SELECT COUNT(*) AS n FROM cves c ${needJoin ? 'LEFT JOIN kev k ON k.cve_id = c.id LEFT JOIN epss e ON e.cve_id = c.id' : ''} ${W}`, args)
   const [rows] = await pool.query<any[]>(`${SELECT} ${W} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
@@ -143,6 +173,15 @@ app.get('/api/cves/:id/extra', wrap(async (req, res) => {
     kev: k ? { vendor: k.vendor, product: k.product, name: k.name, description: k.description, action: k.action, added: k.added, due: k.due, ransomware: k.ransomware === 'Known' || k.ransomware === 1 } : null,
     cveorg: co, osv: os, ghsa: gh ?? [], jvn: jv,
   })
+}))
+
+app.get('/api/cves/:id/intel', wrap(async (req, res) => {
+  if (!CVE_RE.test(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
+  const id = req.params.id.toUpperCase()
+  const c = await getCve(id, goneFn(res))
+  const pub = c?.published ?? new Date().toISOString()
+  const v = await cached(id, 'intel', TTL(pub, 6 * 3600_000), () => intel(id))
+  res.set('Cache-Control', 'public, max-age=300').json(v)
 }))
 
 // Japanese text for the English-only blocks of the detail page (CISA KEV and CVE.org solutions / workarounds).

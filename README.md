@@ -29,6 +29,11 @@ A fast, bilingual (English / 日本語) CVE search service. Search by CVE ID or 
 | [FIRST EPSS](https://www.first.org/epss/) | Exploit probability and trend |
 | [CVE.org](https://www.cve.org/) | Affected products, solutions, credits |
 | [OSV](https://osv.dev/) | Affected packages and fixed versions |
+| [Exploit-DB](https://www.exploit-db.com/) | Public exploits |
+| [Metasploit](https://github.com/rapid7/metasploit-framework) / [Nuclei templates](https://github.com/projectdiscovery/nuclei-templates) | Exploit modules and scanner templates |
+| [PoC-in-GitHub](https://github.com/nomi-sec/PoC-in-GitHub) / [Trickest](https://github.com/trickest/cve) | Public PoC repositories |
+| Ubuntu / Red Hat / Microsoft MSRC | Vendor and distro fix status |
+| [Hacker News](https://news.ycombinator.com/) | Community mentions |
 | [GitHub Advisories](https://github.com/advisories) | Package advisories |
 | [JVN iPedia](https://jvndb.jvn.jp/) | Japanese descriptions |
 | [MITRE CWE](https://cwe.mitre.org/) | Weakness names |
@@ -94,6 +99,7 @@ Put a reverse proxy (nginx, Caddy) in front and set `SITE_URL`.
 | `GET /api/cves?q=&severity=&year=&kev=1&sort=&page=` | Search. `sort` is `new`, `score`, `epss` or `modified` |
 | `GET /api/cves/:id` | One CVE |
 | `GET /api/cves/:id/extra` | EPSS, KEV, CVE.org, OSV, GitHub Advisories, JVN |
+| `GET /api/cves/:id/intel` | Public exploits, PoCs, scanner templates, vendor advisories, mentions |
 | `GET /api/cves/:id/related` | CVEs with the same CWE or product |
 | `GET /api/pkg/:ecosystem/*name?version=` | Vulnerabilities of a package (30 req/min) |
 | `POST /api/scan` | Check up to 3,000 packages `{packages:[{ecosystem,name,version}]}` (10 req/min) |
