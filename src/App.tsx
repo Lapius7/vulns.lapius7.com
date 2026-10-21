@@ -18,6 +18,7 @@ import AdvisoryDetail from '@/Advisory'
 import ScanPage from '@/Scan'
 import StatsPage from '@/Stats'
 import DocsPage from '@/Docs'
+import SourcesPage from '@/Sources'
 import { classify } from '@/lib/query'
 import { ProductSuggest } from '@/ProductSuggest'
 import { CwePage, PkgPage, VendorPage } from '@/Explore'
@@ -46,6 +47,7 @@ export default function App() {
   if (/^\/scan\/?$/.test(rest)) return <ScanPage {...tp} />
   if (/^\/stats\/?$/.test(rest)) return <StatsPage {...tp} />
   if (/^\/docs\/?$/.test(rest)) return <DocsPage {...tp} />
+  if (/^\/sources\/?$/.test(rest)) return <SourcesPage {...tp} />
   const vd = rest.match(/^\/vendor\/([^/]+)(?:\/([^/]+))?\/?$/)
   if (vd) return <VendorPage vendor={dec(vd[1])} product={dec(vd[2] ?? '')} {...tp} />
   const cw = rest.match(/^\/cwe\/([\w-]+)\/?$/i)
@@ -141,7 +143,7 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
         <div className="actions"><LangSwitch /><ThemeSwitch theme={theme} onThemeChange={onThemeChange} iconOnly /></div>
       </div>
       <p className="lead">{t('lead')}</p>
-      <nav className="tags" style={{ display: 'flex', gap: '1rem', margin: '-.5rem 0 1rem', fontSize: '.875rem' }}><Link href="/pkg">{t('navPkg')}</Link><Link href="/scan">{t('navScan')}</Link><Link href="/stats">{t('navStats')}</Link><Link href="/docs">{t('navDocs')}</Link></nav>
+      <nav className="tags" style={{ display: 'flex', gap: '1rem', margin: '-.5rem 0 1rem', fontSize: '.875rem' }}><Link href="/pkg">{t('navPkg')}</Link><Link href="/scan">{t('navScan')}</Link><Link href="/stats">{t('navStats')}</Link><Link href="/sources">{t('navSources')}</Link><Link href="/docs">{t('navDocs')}</Link></nav>
 
       <div className="tabs" style={{ marginBottom: '1rem' }}>
         <SegmentedControl label={t('aView')} value={tab} onValueChange={(v) => { setTab(v as Tab); setPage(1) }}

@@ -293,6 +293,7 @@ function metaFor(c: { id: string; severity: string | null; score: number | null;
 const PAGES: Record<string, { en: [string, string]; ja: [string, string] }> = {
   scan: { en: ['Check dependencies', 'Drop a lockfile or SBOM to list known vulnerabilities in your dependencies. Parsed in your browser.'], ja: ['依存関係の診断', 'ロックファイルや SBOM をドロップすると、依存パッケージの既知の脆弱性を一覧にします。解析はブラウザ内で行います。'] },
   stats: { en: ['Statistics', 'Totals, severity, monthly counts, top CWEs and vendors.'], ja: ['統計', '総数、深刻度別、月ごとの件数、多い CWE とベンダー。'] },
+  sources: { en: ['Data sources', 'Where the vulnerability data comes from: NVD, CISA KEV, EPSS, CVE.org, OSV, JVN, Exploit-DB, Metasploit and more.'], ja: ['情報源一覧', '脆弱性データの出どころ: NVD、CISA KEV、EPSS、CVE.org、OSV、JVN、Exploit-DB、Metasploit など。'] },
   docs: { en: ['Docs', 'Search formats, URL formats, the public API, badges and embeds.'], ja: ['ドキュメント', '検索の書き方、URL の形式、公開 API、バッジと埋め込み。'] },
   pkg: { en: ['Package search', 'Find known vulnerabilities by package name and version for npm, PyPI, Go, Maven and more.'], ja: ['パッケージ検索', 'npm、PyPI、Go、Maven などのパッケージ名とバージョンから既知の脆弱性を検索します。'] },
 }
@@ -302,7 +303,7 @@ function pageInfo(rest: string, ja: boolean): { title: string; desc: string } | 
   let title = '', desc = ''
   let m: RegExpMatchArray | null
   const L = ja ? 'ja' : 'en'
-  if ((m = rest.match(/^\/(scan|stats|docs)\/?$/))) [title, desc] = PAGES[m[1]][L]
+  if ((m = rest.match(/^\/(scan|stats|docs|sources)\/?$/))) [title, desc] = PAGES[m[1]][L]
   else if ((m = rest.match(/^\/pkg(?:\/([^/]+)(?:\/(.+?))?)?\/?$/))) {
     if (m[1] && m[2]) { const n = dec(m[2]); title = ja ? `${n} (${m[1]}) の脆弱性` : `${n} (${m[1]}) vulnerabilities`; desc = ja ? `${m[1]} の ${n} に関する既知の脆弱性とその修正バージョン。` : `Known vulnerabilities and fixed versions of ${n} on ${m[1]}.` }
     else [title, desc] = PAGES.pkg[L]
