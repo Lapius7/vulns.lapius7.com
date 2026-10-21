@@ -57,6 +57,8 @@ export const getExtra = (id: string, signal?: AbortSignal) => get<Extra>(`/api/c
 
 async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal })
+  // The edge may replace a JSON 404 with a plain-text redirect body, so trust the status code.
+  if (res.status === 404) throw new Error('not_found')
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? String(res.status))
   return res.json()
 }
