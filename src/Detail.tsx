@@ -94,6 +94,15 @@ export default function Detail({ id, theme, onThemeChange }: { id: string; theme
         <EmptyState title={nf ? t('notFound') : t('loadCve')}
           description={nf ? t('notInNvd', { id }) : err === 'rate_limited' ? t('rate') : t('tryLater')}
           action={<Button onClick={() => location.reload()}>{t('retry')}</Button>} />
+        {err === 'not_found' && <section className="card" style={{ marginTop: '1rem' }}>
+          <h3>{t('unpubTitle')}</h3>
+          <p>{t('unpubBody')}</p>
+          <ul className="refs">
+            <li><Ext href={`https://www.cve.org/CVERecord?id=${id}`}>CVE.org</Ext></li>
+            <li><Ext href={`https://nvd.nist.gov/vuln/detail/${id}`}>NVD</Ext></li>
+            <li><Ext href={`https://github.com/advisories?query=${id}`}>GitHub Advisory</Ext></li>
+          </ul>
+        </section>}
       </main>
     )
   }
