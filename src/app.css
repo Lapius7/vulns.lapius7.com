@@ -309,3 +309,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.fold { display: grid; grid-template-columns: 1fr; opacity: 1; transition-property: grid-template-columns, opacity, margin; transition-duration: .28s; transition-timing-function: cubic-bezier(.22, 1, .36, 1); }
+.fold > div { min-width: 0; overflow: clip; overflow-clip-margin: 6px; }
+.fold.off { grid-template-columns: 0fr; opacity: 0; margin-inline: -.375rem; pointer-events: none; }
+@media (max-width: 47.99rem) { .fold.off { display: none; } }

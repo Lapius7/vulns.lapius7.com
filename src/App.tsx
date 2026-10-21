@@ -82,6 +82,11 @@ type Tab = 'search' | 'kev' | 'epss'
 
 const normAdv = (id: string) => /^ghsa-/i.test(id) ? `GHSA-${id.slice(5).toLowerCase()}` : id.toUpperCase()
 
+/** Collapses a control sideways (and fades it) instead of popping it in and out. */
+function Fold({ show, children }: { show: boolean; children: React.ReactNode }) {
+  return <div className={`fold${show ? '' : ' off'}`} inert={!show}><div>{children}</div></div>
+}
+
 function AdvRow({ a }: { a: AdvItem }) {
   const { t } = useLang()
   return <Link href={`/${a.id}`} className="row wide">
@@ -197,10 +202,10 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
             <SearchField autoComplete="off" spellCheck={false} label={t('searchLabel')} placeholder={t('searchPh')} value={q} onValueChange={(v) => { setQ(v); setPage(1) }} />
           </div>
           <SegmentedControl label={t('kindLabel')} options={[{ value: '', label: t('kindAll') }, { value: 'cve', label: 'CVE' }, { value: 'adv', label: t('kindAdv') }, { value: 'prod', label: t('kindProd') }]} value={kind} onValueChange={(v) => { setKind(v); setPage(1); setOther(null) }} />
-          {kind !== 'prod' && <SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} />}
-          {kind !== 'adv' && kind !== 'prod' && <Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} />}
-          {kind !== 'prod' && <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={kind === 'adv' ? [{ value: '_', label: t('sortNew') }, { value: 'old', label: t('sortOld') }] : [{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} />}
-          {kind !== 'adv' && kind !== 'prod' && <Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button>}
+          <Fold show={kind !== 'prod'}><SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} /></Fold>
+          <Fold show={kind !== 'adv' && kind !== 'prod'}><Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} /></Fold>
+          <Fold show={kind !== 'prod'}><Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={kind === 'adv' ? [{ value: '_', label: t('sortNew') }, { value: 'old', label: t('sortOld') }] : [{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} /></Fold>
+          <Fold show={kind !== 'adv' && kind !== 'prod'}><Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button></Fold>
         </div>
       ) : (
         <p className="lead" style={{ marginTop: 0 }}>{t(tab === 'kev' ? 'kevLead' : 'epssLead')}</p>
