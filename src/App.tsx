@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { SearchField } from '@/components/arc/search-field/search-field'
 import { Select } from '@/components/arc/select/select'
 import SegmentedControl from '@/components/arc/segmented-control/segmented-control'
@@ -81,19 +81,6 @@ type Tab = 'search' | 'kev' | 'epss'
 
 
 const normAdv = (id: string) => /^ghsa-/i.test(id) ? `GHSA-${id.slice(5).toLowerCase()}` : id.toUpperCase()
-
-/** Controls that come and go with the selected type slide in and out instead of popping. */
-function Pop({ show, children }: { show: boolean; children: React.ReactNode }) {
-  return (
-    <AnimatePresence initial={false}>
-      {show && <motion.div
-        initial={{ opacity: 0, width: 0, scale: 0.96, overflow: 'hidden' }}
-        animate={{ opacity: 1, width: 'auto', scale: 1, transitionEnd: { overflow: 'visible' } }}
-        exit={{ opacity: 0, width: 0, scale: 0.96, overflow: 'hidden' }}
-        transition={motionTokens.spring.smooth}>{children}</motion.div>}
-    </AnimatePresence>
-  )
-}
 
 function AdvRow({ a }: { a: AdvItem }) {
   const { t } = useLang()
@@ -184,9 +171,6 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
 
   const onlyOther = tab === 'search' && (kind === 'adv' || kind === 'prod')
   const feed = onlyOther ? other : tab === 'search' ? data : tab === 'kev' ? kev : top
-  // Bumps when a new result set arrives so the rows play their enter animation again.
-  const lastFeed = useRef(feed), feedRev = useRef(0)
-  if (feed !== lastFeed.current) { lastFeed.current = feed; feedRev.current++ }
   const pageCount = feed?.perPage ? Math.ceil((feed.total ?? 0) / feed.perPage) : 0
   const sevOptions = [
     { value: '', label: t('all') }, { value: 'CRITICAL', label: t('critical') }, { value: 'HIGH', label: t('high') },
@@ -213,10 +197,10 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
             <SearchField autoComplete="off" spellCheck={false} label={t('searchLabel')} placeholder={t('searchPh')} value={q} onValueChange={(v) => { setQ(v); setPage(1) }} />
           </div>
           <SegmentedControl label={t('kindLabel')} options={[{ value: '', label: t('kindAll') }, { value: 'cve', label: 'CVE' }, { value: 'adv', label: t('kindAdv') }, { value: 'prod', label: t('kindProd') }]} value={kind} onValueChange={(v) => { setKind(v); setPage(1); setOther(null) }} />
-          <Pop show={kind !== 'prod'}><SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} /></Pop>
-          <Pop show={kind !== 'adv' && kind !== 'prod'}><Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} /></Pop>
-          <Pop show={kind !== 'prod'}><Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={kind === 'adv' ? [{ value: '_', label: t('sortNew') }, { value: 'old', label: t('sortOld') }] : [{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} /></Pop>
-          <Pop show={kind !== 'adv' && kind !== 'prod'}><Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button></Pop>
+          {kind !== 'prod' && <SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} />}
+          {kind !== 'adv' && kind !== 'prod' && <Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} />}
+          {kind !== 'prod' && <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={kind === 'adv' ? [{ value: '_', label: t('sortNew') }, { value: 'old', label: t('sortOld') }] : [{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} />}
+          {kind !== 'adv' && kind !== 'prod' && <Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button>}
         </div>
       ) : (
         <p className="lead" style={{ marginTop: 0 }}>{t(tab === 'kev' ? 'kevLead' : 'epssLead')}</p>
@@ -263,7 +247,7 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
       ) : feed && feed.items.length === 0 ? (
         <div className="empty-art"><EmptyState icon={<EmptyArt />} title={t('noneTitle')} description={t('none')} /></div>
       ) : (
-        <div className="list enter" key={feedRev.current} style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}>
+        <div className="list" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}>
           {onlyOther && kind === 'adv' && other && (other.items as AdvItem[]).map((a) => <AdvRow key={a.id} a={a} />)}
           {onlyOther && kind === 'prod' && other && (other.items as ProdItem[]).map((pr) => <ProdRow key={`${pr.vendor}/${pr.product}`} p={pr} />)}
           {tab === 'search' && !onlyOther && data && <DataTable key="s" data={data.items} columns={cveColumns(t)} columnsLabel={t('columns')} rowHref={(c) => withLang(`/${c.id}`)} initialVisibility={narrow ? { package: false, description: false, epss: false, published: false } : {}} />}
@@ -283,7 +267,7 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
 
       {pageCount > 1 && (
         <div className="pager">
-          <Pagination page={page} pageCount={Math.min(pageCount, 500)} onPageChange={(p) => { setPage(p); scrollTo({ top: 0, behavior: 'smooth' }) }} />
+          <Pagination page={page} pageCount={Math.min(pageCount, 500)} onPageChange={(p) => { setPage(p); scrollTo({ top: 0, behavior: 'auto' }) }} />
         </div>
       )}
     </main>
