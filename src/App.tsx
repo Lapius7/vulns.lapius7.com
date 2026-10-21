@@ -19,6 +19,7 @@ import ScanPage from '@/Scan'
 import StatsPage from '@/Stats'
 import DocsPage from '@/Docs'
 import SourcesPage from '@/Sources'
+import { Shell } from '@/Explore'
 import { classify } from '@/lib/query'
 import { ProductSuggest } from '@/ProductSuggest'
 import { CwePage, PkgPage, VendorPage } from '@/Explore'
@@ -32,6 +33,13 @@ function useDebounced<T>(v: T, ms: number) {
     return () => clearTimeout(t)
   }, [v, ms])
   return d
+}
+
+function NotFoundPage({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme, v: unknown, el: HTMLElement) => void }) {
+  const { t } = useLang()
+  return <Shell title={t('pageNotFound')} theme={theme} onThemeChange={onThemeChange}>
+    <EmptyState title={t('pageNotFound')} description={t('pageNotFoundHint')} action={<Link href="/"><Button>{t('back')}</Button></Link>} />
+  </Shell>
 }
 
 export default function App() {
@@ -54,6 +62,8 @@ export default function App() {
   if (cw) return <CwePage id={cw[1]} {...tp} />
   const m = rest.match(/^\/([A-Za-z]+-[A-Za-z0-9-]{4,40})\/?$/)
   const vid = m && (ADV_RE.test(m[1]) || /^CVE-\d{4}-\d{4,}$/i.test(m[1])) ? decodeURIComponent(m[1]) : ''
+  // Anything that is not the top page and matched no route above is a 404, not the home page.
+  if (!vid && rest !== '' && rest !== '/') return <NotFoundPage {...tp} />
   return vid ? (ADV_RE.test(vid) && !/^CVE-/i.test(vid) ? <AdvisoryDetail id={vid} theme={theme} onThemeChange={setTheme} /> : <Detail id={vid} theme={theme} onThemeChange={setTheme} />) : <Home theme={theme} onThemeChange={setTheme} />
 }
 
