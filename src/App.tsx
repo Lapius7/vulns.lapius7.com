@@ -82,7 +82,7 @@ const normAdv = (id: string) => /^ghsa-/i.test(id) ? `GHSA-${id.slice(5).toLower
 
 function AdvRow({ a }: { a: AdvItem }) {
   const { t } = useLang()
-  return <Link href={`/${a.id}`} className="row">
+  return <Link href={`/${a.id}`} className="row wide">
     <span className="id">{a.id}</span>
     <span className="desc">{a.summary}<span className="tags" style={{ display: 'block' }}>{[...new Set(a.packages.map((p) => `${p.ecosystem}: ${p.name}`))].slice(0, 3).join(' · ')}{a.aliases.length ? ` · ${a.aliases.join(', ')}` : ''}</span></span>
     <span className="tags">{a.severity ? t(a.severity.toLowerCase() as 'critical') : ''} {a.published?.slice(0, 10)}</span>
@@ -90,7 +90,7 @@ function AdvRow({ a }: { a: AdvItem }) {
 }
 
 function ProdRow({ p }: { p: ProdItem }) {
-  return <Link href={`/vendor/${encodeURIComponent(p.vendor)}/${encodeURIComponent(p.product)}`} className="row">
+  return <Link href={`/vendor/${encodeURIComponent(p.vendor)}/${encodeURIComponent(p.product)}`} className="row wide">
     <span className="id">{p.vendor}</span>
     <span className="desc">{p.product}</span>
     <span className="tags">{p.count.toLocaleString()} CVE</span>
@@ -195,16 +195,16 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
             <SearchField autoComplete="off" spellCheck={false} label={t('searchLabel')} placeholder={t('searchPh')} value={q} onValueChange={(v) => { setQ(v); setPage(1) }} />
           </div>
           <SegmentedControl label={t('kindLabel')} options={[{ value: '', label: t('kindAll') }, { value: 'cve', label: 'CVE' }, { value: 'adv', label: t('kindAdv') }, { value: 'prod', label: t('kindProd') }]} value={kind} onValueChange={(v) => { setKind(v); setPage(1); setOther(null) }} />
-          <SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} />
-          <Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} />
-          <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} />
-          <Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button>
+          {kind !== 'prod' && <SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} />}
+          {kind !== 'adv' && kind !== 'prod' && <Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} />}
+          {kind !== 'prod' && <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={kind === 'adv' ? [{ value: '_', label: t('sortNew') }, { value: 'old', label: t('sortOld') }] : [{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} />}
+          {kind !== 'adv' && kind !== 'prod' && <Button variant="secondary" size="sm" onClick={() => setAdvOpen((o) => !o)} aria-expanded={advOpen}>{t('advFilters')}{advCount > 0 ? ` (${advCount})` : ''}</Button>}
         </div>
       ) : (
         <p className="lead" style={{ marginTop: 0 }}>{t(tab === 'kev' ? 'kevLead' : 'epssLead')}</p>
       )}
 
-      {tab === 'search' && advOpen && <div className="advpanel card">
+      {tab === 'search' && advOpen && kind !== 'adv' && kind !== 'prod' && <div className="advpanel card">
         <Input label={t('fMinScore')} type="number" inputMode="decimal" min={0} max={10} step={0.1} value={adv.minScore ?? ''} onChange={(e) => setA('minScore', e.target.value)} />
         <Input label={t('fMaxScore')} type="number" inputMode="decimal" min={0} max={10} step={0.1} value={adv.maxScore ?? ''} onChange={(e) => setA('maxScore', e.target.value)} />
         <Input label={t('fMinEpss')} type="number" inputMode="decimal" min={0} max={100} step={1} value={adv.minEpss ? String(Math.round(Number(adv.minEpss) * 100)) : ''} onChange={(e) => setA('minEpss', e.target.value === '' ? '' : String(Math.min(100, Math.max(0, Number(e.target.value))) / 100))} />

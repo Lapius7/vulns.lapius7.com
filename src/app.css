@@ -293,3 +293,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .advchk { display: flex; align-items: center; gap: .5rem; font-size: .875rem; min-height: 2.25rem; }
 .prev { display: grid; gap: 1.25rem; margin-top: 1.5rem; }
 .prev h3 { margin: 0 0 .5rem; font-size: .9375rem; }
+
+/* Advisory and product rows: the ID column must fit a full GHSA ID, and dates stay on one line. */
+.row.wide { grid-template-columns: minmax(0, 15.5rem) minmax(0, 1fr) auto; column-gap: 1.25rem; }
+.row.wide .id { overflow: hidden; text-overflow: ellipsis; }
+.row.wide > .tags { white-space: nowrap; text-align: right; }
+@media (max-width: 47.99rem) {
+  .row.wide { grid-template-columns: minmax(0, 1fr); }
+  .row.wide > .tags { text-align: left; }
+}
