@@ -159,7 +159,7 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
 
   const onlyOther = tab === 'search' && (kind === 'adv' || kind === 'prod')
   const feed = onlyOther ? other : tab === 'search' ? data : tab === 'kev' ? kev : top
-  const pageCount = feed ? Math.ceil(feed.total / feed.perPage) : 0
+  const pageCount = feed?.perPage ? Math.ceil((feed.total ?? 0) / feed.perPage) : 0
   const sevOptions = [
     { value: '', label: t('all') }, { value: 'CRITICAL', label: t('critical') }, { value: 'HIGH', label: t('high') },
     { value: 'MEDIUM', label: t('medium') }, { value: 'LOW', label: t('low') },
@@ -223,7 +223,7 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
         <p className="tags" style={{ margin: '.25rem 0 0' }}>{advInfo?.summary || t(gh ? 'advRepoHint' : 'advHint')}{advInfo?.severity && ` (${t(advInfo.severity.toLowerCase() as 'critical')})`}</p>
       </div>}
       <div className="meta" aria-live="polite">
-        {error ? '' : loading ? t('searching') : feed && t(tab === 'search' && !dq && data?.live ? 'recent' : 'results', { n: feed.total.toLocaleString() })}
+        {error ? '' : loading ? t('searching') : feed && t(tab === 'search' && !dq && data?.live ? 'recent' : 'results', { n: (feed.total ?? 0).toLocaleString() })}
       </div>
 
       {error ? (

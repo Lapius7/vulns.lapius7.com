@@ -215,7 +215,7 @@ export function extraRoutes(app: express.Express, deps: { wrap: (fn: (req: expre
   // ---- products / vendors ----
   app.get('/api/products', wrap(async (req, res) => {
     const q = String(req.query.q ?? '').trim().toLowerCase().slice(0, 60)
-    if (q.length < 2) return res.json({ items: [] })
+    if (q.length < 2 && !req.query.page) return res.json({ items: [] })
     const like = `${q.replace(/[%_\\]/g, '\\$&')}%`
     if (req.query.page) {
       const page = Math.max(1, Number(req.query.page) || 1)
