@@ -1,3 +1,4 @@
+import { syncAdvisories } from './advsync.ts'
 import { gunzipSync } from 'node:zlib'
 import { getState, migrate, pool, setState, upsertCves } from './db.ts'
 import { KEY, normalize, nvdRaw, type Json } from './nvd.ts'
@@ -96,6 +97,7 @@ export async function tick() {
     if ((await getState('full_done')) !== '1') await fullSync()
     else if (Date.now() - new Date((await getState('last_sync'))! + 'Z').getTime() > 2 * 3600_000) await incrementalSync()
     if (Date.now() - Number((await getState('daily_at')) ?? 0) > 24 * 3600_000) await dailySync()
+    await syncAdvisories()
   } catch (e: any) {
     log('error', e.message)
   } finally {

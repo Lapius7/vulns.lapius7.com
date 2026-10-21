@@ -217,6 +217,15 @@ export function extraRoutes(app: express.Express, deps: { wrap: (fn: (req: expre
     const q = String(req.query.q ?? '').trim().toLowerCase().slice(0, 60)
     if (q.length < 2) return res.json({ items: [] })
     const like = `${q.replace(/[%_\\]/g, '\\$&')}%`
+    if (req.query.page) {
+      const page = Math.max(1, Number(req.query.page) || 1)
+      const contains = `%${q.replace(/[%_\\]/g, '\\$&')}%`
+      const [[c], [rows]] = await Promise.all([
+        pool.query<any[]>('SELECT COUNT(*) AS n FROM (SELECT 1 FROM cve_product WHERE product LIKE ? OR vendor LIKE ? GROUP BY vendor, product) t', [contains, contains]),
+        pool.query<any[]>('SELECT vendor, product, COUNT(*) AS n FROM cve_product WHERE product LIKE ? OR vendor LIKE ? GROUP BY vendor, product ORDER BY n DESC LIMIT 20 OFFSET ?', [contains, contains, (page - 1) * 20]),
+      ])
+      return res.set('cache-control', 'public, max-age=300').json({ total: Number(c[0].n), page, perPage: 20, items: rows.map((r) => ({ vendor: r.vendor, product: r.product, count: Number(r.n) })) })
+    }
     const [rows] = await pool.query<any[]>(
       `SELECT vendor, product, COUNT(*) AS n FROM cve_product WHERE product LIKE ? OR vendor LIKE ? GROUP BY vendor, product ORDER BY n DESC LIMIT 12`, [like, like])
     res.set('cache-control', 'public, max-age=300').json({ items: rows.map((r) => ({ vendor: r.vendor, product: r.product, count: Number(r.n) })) })

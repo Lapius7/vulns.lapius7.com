@@ -120,3 +120,14 @@ export async function scanPackages(packages: { ecosystem: string; name: string; 
 }
 
 export const getRelated = (id: string, signal?: AbortSignal) => get<{ sameCwe: Cve[]; sameProduct: Cve[] }>(`/api/cves/${id}/related`, signal)
+
+export interface AdvItem { id: string; summary: string; severity: string | null; cvss: string | null; published: string | null; aliases: string[]; packages: { ecosystem: string; name: string }[] }
+export interface ProdItem { vendor: string; product: string; count: number }
+export const searchAdvisories = (q: string, severity: string, page: number, signal?: AbortSignal, sort = '') => {
+  const p = new URLSearchParams({ page: String(page) })
+  if (q) p.set('q', q)
+  if (severity) p.set('severity', severity)
+  if (sort) p.set('sort', sort)
+  return get<Feed<AdvItem>>(`/api/advisories?${p}`, signal)
+}
+export const searchProducts = (q: string, page: number, signal?: AbortSignal) => get<Feed<ProdItem>>(`/api/products?q=${encodeURIComponent(q)}&page=${page}`, signal)

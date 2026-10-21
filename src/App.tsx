@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/arc/empty-state/empty-state'
 import { Skeleton } from '@/components/arc/skeleton/skeleton'
 import { useThemeTransition } from '@/components/transitions/theme-transition'
 import { ThemeSwitch, type Theme } from '@/components/arc/theme-switch/theme-switch'
-import { ADV_KEYS, ADV_RE, getAdvisory, getEpssTop, type Advisory, getKev, searchCves, type EpssItem, type Feed, type KevItem, type CveList } from '@/lib/api'
+import { searchAdvisories, searchProducts, type AdvItem, type ProdItem, ADV_KEYS, ADV_RE, getAdvisory, getEpssTop, type Advisory, getKev, searchCves, type EpssItem, type Feed, type KevItem, type CveList } from '@/lib/api'
 import { Link, stripLang, usePath, withLang } from '@/lib/router'
 import { useLang, type Lang } from '@/lib/i18n'
 import Detail from '@/Detail'
@@ -70,6 +70,23 @@ type Tab = 'search' | 'kev' | 'epss'
 
 const normAdv = (id: string) => /^ghsa-/i.test(id) ? `GHSA-${id.slice(5).toLowerCase()}` : id.toUpperCase()
 
+function AdvRow({ a }: { a: AdvItem }) {
+  const { t } = useLang()
+  return <Link href={`/${a.id}`} className="row">
+    <span className="id">{a.id}</span>
+    <span className="desc">{a.summary}<span className="tags" style={{ display: 'block' }}>{[...new Set(a.packages.map((p) => `${p.ecosystem}: ${p.name}`))].slice(0, 3).join(' · ')}{a.aliases.length ? ` · ${a.aliases.join(', ')}` : ''}</span></span>
+    <span className="tags">{a.severity ? t(a.severity.toLowerCase() as 'critical') : ''} {a.published?.slice(0, 10)}</span>
+  </Link>
+}
+
+function ProdRow({ p }: { p: ProdItem }) {
+  return <Link href={`/vendor/${encodeURIComponent(p.vendor)}/${encodeURIComponent(p.product)}`} className="row">
+    <span className="id">{p.vendor}</span>
+    <span className="desc">{p.product}</span>
+    <span className="tags">{p.count.toLocaleString()} CVE</span>
+  </Link>
+}
+
 function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme, v: unknown, el: HTMLElement) => void }) {
   const { t } = useLang()
   const init = new URLSearchParams(location.search)
@@ -78,6 +95,9 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
   const [severity, setSeverity] = useState(init.get('severity') ?? '')
   const [year, setYear] = useState(init.get('year') ?? '')
   const [sort, setSort] = useState(init.get('sort') ?? '')
+  const [kind, setKind] = useState(init.get('kind') ?? '')
+  const [other, setOther] = useState<Feed<AdvItem> | Feed<ProdItem> | null>(null)
+  const [prev, setPrev] = useState<{ adv: Feed<AdvItem>; prod: Feed<ProdItem> } | null>(null)
   const [adv, setAdv] = useState<Record<string, string>>(() => Object.fromEntries(ADV_KEYS.map((k) => [k, init.get(k) ?? '']).filter(([, v]) => v)))
   const [advOpen, setAdvOpen] = useState(() => ADV_KEYS.some((k) => init.get(k)))
   const setA = (k: string, v: string) => { setAdv((a) => ({ ...a, [k]: v })); setPage(1) }
@@ -114,22 +134,31 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
     if (tab === 'search' && year) p.set('year', year)
     if (tab === 'search' && sort) p.set('sort', sort)
     if (tab === 'search') for (const [k, v] of Object.entries(adv)) if (v) p.set(k, v)
+    if (tab === 'search' && kind) p.set('kind', kind)
     if (page > 1) p.set('page', String(page))
     history.replaceState(null, '', p.size ? `?${p}` : location.pathname)
-  }, [tab, dq, severity, year, sort, adv, page])
+  }, [tab, dq, severity, year, sort, adv, kind, page])
 
   useEffect(() => {
     const ac = new AbortController()
     setLoading(true)
     setError(null)
     const fail = (e: Error) => { if (e.name !== 'AbortError') { setError(e.message === 'rate_limited' ? 'rate' : 'loadFail'); setLoading(false) } }
-    if (tab === 'search') searchCves(dq, severity, page, ac.signal, year, sort, adv).then((d) => { setData(d); setLoading(false) }).catch(fail)
+    const onlyOther = tab === 'search' && (kind === 'adv' || kind === 'prod')
+    if (onlyOther && kind === 'adv') searchAdvisories(dq, severity, page, ac.signal, sort).then((d) => { setOther(d); setLoading(false) }).catch(fail)
+    else if (onlyOther) searchProducts(dq, page, ac.signal).then((d) => { setOther(d); setLoading(false) }).catch(fail)
+    else if (tab === 'search') {
+      searchCves(dq, severity, page, ac.signal, year, sort, adv).then((d) => { setData(d); setLoading(false) }).catch(fail)
+      setPrev(null)
+      if (kind === '' && dq.length >= 2 && page === 1) Promise.all([searchAdvisories(dq, severity, 1, ac.signal), searchProducts(dq, 1, ac.signal)]).then(([a, pr]) => setPrev({ adv: a, prod: pr })).catch(() => {})
+    }
     else if (tab === 'kev') getKev(page, ac.signal).then((d) => { setKev(d); setLoading(false) }).catch(fail)
     else getEpssTop(page, ac.signal).then((d) => { setTop(d); setLoading(false) }).catch(fail)
     return () => ac.abort()
-  }, [tab, dq, severity, year, sort, adv, page, nonce])
+  }, [tab, dq, severity, year, sort, adv, kind, page, nonce])
 
-  const feed = tab === 'search' ? data : tab === 'kev' ? kev : top
+  const onlyOther = tab === 'search' && (kind === 'adv' || kind === 'prod')
+  const feed = onlyOther ? other : tab === 'search' ? data : tab === 'kev' ? kev : top
   const pageCount = feed ? Math.ceil(feed.total / feed.perPage) : 0
   const sevOptions = [
     { value: '', label: t('all') }, { value: 'CRITICAL', label: t('critical') }, { value: 'HIGH', label: t('high') },
@@ -155,6 +184,7 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
           <div className="grow">
             <SearchField autoComplete="off" spellCheck={false} label={t('searchLabel')} placeholder={t('searchPh')} value={q} onValueChange={(v) => { setQ(v); setPage(1) }} />
           </div>
+          <SegmentedControl label={t('kindLabel')} options={[{ value: '', label: t('kindAll') }, { value: 'cve', label: 'CVE' }, { value: 'adv', label: t('kindAdv') }, { value: 'prod', label: t('kindProd') }]} value={kind} onValueChange={(v) => { setKind(v); setPage(1); setOther(null) }} />
           <SegmentedControl label={t('severity')} options={sevOptions} value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }} />
           <Select label={t('year')} value={year || '_'} onValueChange={(v) => { setYear(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('anyYear') }, ...Array.from({ length: new Date().getFullYear() - 1998 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => ({ value: y, label: y }))]} />
           <Select label={t('sortBy')} value={sort || '_'} onValueChange={(v) => { setSort(v === '_' ? '' : v); setPage(1) }} options={[{ value: '_', label: t('sortNew') }, { value: 'score', label: t('sortScore') }, { value: 'epss', label: t('sortEpss') }, { value: 'modified', label: t('sortModified') }, { value: 'old', label: t('sortOld') }]} />
@@ -204,11 +234,22 @@ function Home({ theme, onThemeChange }: { theme: Theme; onThemeChange: (t: Theme
         <div className="empty-art"><EmptyState icon={<EmptyArt />} title={t('noneTitle')} description={t('none')} /></div>
       ) : (
         <div className="list" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .15s' }}>
-          {tab === 'search' && data && <DataTable key="s" data={data.items} columns={cveColumns(t)} columnsLabel={t('columns')} rowHref={(c) => withLang(`/${c.id}`)} initialVisibility={narrow ? { package: false, description: false, epss: false, published: false } : {}} />}
+          {onlyOther && kind === 'adv' && other && (other.items as AdvItem[]).map((a) => <AdvRow key={a.id} a={a} />)}
+          {onlyOther && kind === 'prod' && other && (other.items as ProdItem[]).map((pr) => <ProdRow key={`${pr.vendor}/${pr.product}`} p={pr} />)}
+          {tab === 'search' && !onlyOther && data && <DataTable key="s" data={data.items} columns={cveColumns(t)} columnsLabel={t('columns')} rowHref={(c) => withLang(`/${c.id}`)} initialVisibility={narrow ? { package: false, description: false, epss: false, published: false } : {}} />}
           {tab === 'kev' && kev && <DataTable key="k" data={kev.items} columns={kevColumns(t)} columnsLabel={t('columns')} rowHref={(c) => withLang(`/${c.id}`)} initialVisibility={narrow ? { description: false, due: false, vendor: false, added: false, ransomware: false } : { ransomware: false, due: false }} />}
           {tab === 'epss' && top && <DataTable key="e" data={top.items} columns={epssColumns(t)} columnsLabel={t('columns')} rowHref={(c) => withLang(`/${c.id}`)} />}
         </div>
       )}
+
+      {tab === 'search' && kind === '' && prev && (prev.adv.items.length > 0 || prev.prod.items.length > 0) && <div className="prev">
+        {prev.adv.items.length > 0 && <section><h3>{t('kindAdv')} <span className="tags">{prev.adv.total.toLocaleString()}</span></h3>
+          <div className="list">{prev.adv.items.slice(0, 5).map((a) => <AdvRow key={a.id} a={a} />)}</div>
+          {prev.adv.total > 5 && <p><Button variant="ghost" size="sm" onClick={() => { setKind('adv'); setPage(1) }}>{t('kindMore')}</Button></p>}</section>}
+        {prev.prod.items.length > 0 && <section><h3>{t('kindProd')} <span className="tags">{prev.prod.total.toLocaleString()}</span></h3>
+          <div className="list">{prev.prod.items.slice(0, 5).map((pr) => <ProdRow key={`${pr.vendor}/${pr.product}`} p={pr} />)}</div>
+          {prev.prod.total > 5 && <p><Button variant="ghost" size="sm" onClick={() => { setKind('prod'); setPage(1) }}>{t('kindMore')}</Button></p>}</section>}
+      </div>}
 
       {pageCount > 1 && (
         <div className="pager">

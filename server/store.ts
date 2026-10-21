@@ -27,7 +27,7 @@ export async function migrateStore() {
 // ---- advisories ----
 const dt = (s: unknown) => { const d = s ? new Date(String(s)) : null; return d && !isNaN(+d) ? d.toISOString().slice(0, 19).replace('T', ' ') : null }
 
-async function saveAdvisory(a: any) {
+export async function saveAdvisory(a: any) {
   if (!a?.id) return
   const pk: { ecosystem: string; name: string }[] = a.packages ?? []
   await pool.query(
@@ -95,12 +95,16 @@ export function storeRoutes(app: express.Express, wrap: Wrap) {
     const page = Math.max(1, Number(req.query.page) || 1)
     const where: string[] = []; const args: unknown[] = []
     if (/^[A-Za-z0-9-]{3,40}$/.test(q) && q.length >= 3) { where.push('(MATCH(a.id, a.summary) AGAINST (? IN BOOLEAN MODE) OR a.id LIKE ?)'); args.push(`+${q}*`, `${q.replace(/[%_]/g, '')}%`) }
-    else if (q) { where.push('a.summary LIKE ?'); args.push(`%${q.replace(/[%_\\]/g, '\\$&')}%`) }
+    else if (q) { where.push('(a.summary LIKE ? OR a.id IN (SELECT adv_id FROM advisory_pkg WHERE name LIKE ?))'); const like = q.replace(/[%_\\]/g, '\\$&'); args.push(`%${like}%`, `${like}%`) }
     if (pkg) { where.push('a.id IN (SELECT adv_id FROM advisory_pkg WHERE name = ?)'); args.push(pkg) }
+    const sev = String(req.query.severity ?? '').toUpperCase()
+    if (['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(sev)) { where.push('a.severity = ?'); args.push(sev) }
+    const eco = String(req.query.ecosystem ?? '').trim().slice(0, 40)
+    if (eco) { where.push('a.id IN (SELECT adv_id FROM advisory_pkg WHERE ecosystem = ?)'); args.push(eco) }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const [[cnt], [rows]] = await Promise.all([
       pool.query<any[]>(`SELECT COUNT(*) AS n FROM advisories a ${w}`, args),
-      pool.query<any[]>(`SELECT id,summary,severity,cvss,published,modified,aliases,packages FROM advisories a ${w} ORDER BY published DESC LIMIT 20 OFFSET ?`, [...args, (page - 1) * 20]),
+      pool.query<any[]>(`SELECT id,summary,severity,cvss,published,modified,aliases,packages FROM advisories a ${w} ORDER BY ${String(req.query.sort) === 'old' ? 'published ASC' : 'published DESC'} LIMIT 20 OFFSET ?`, [...args, (page - 1) * 20]),
     ])
     res.json({ total: Number(cnt[0].n), page, perPage: 20, items: rows })
   }))
